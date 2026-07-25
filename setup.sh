@@ -9,8 +9,11 @@ TEST_PROJECT="$SCRIPT_DIR/v2rayN/ServiceLib.Tests/ServiceLib.Tests.csproj"
 DOTNET_CHANNEL="${DOTNET_CHANNEL:-10.0.1xx}"
 DOTNET_INSTALL_DIR="${DOTNET_INSTALL_DIR:-$HOME/.dotnet}"
 
+APP_BIN_DIR="$SCRIPT_DIR/v2rayN/v2rayN.Desktop/bin/Debug/net10.0/bin"
+
 INSTALL_DOTNET=1
 INSTALL_SYSTEM_DEPS=0
+INSTALL_XRAY=1
 RUN_RESTORE=1
 RUN_BUILD=0
 RUN_TESTS=0
@@ -25,6 +28,7 @@ Sets up this v2rayN checkout for local development.
 Options:
   --install-system-deps      Install common Linux GUI/build dependencies with apt-get.
   --no-dotnet-install        Do not install .NET if SDK 10.x is missing.
+  --no-xray                  Do not download the Xray core binary.
   --no-restore               Skip dotnet restore.
   --build                    Build the Avalonia desktop project after restore.
   --test                     Run ServiceLib tests after restore.
@@ -59,6 +63,7 @@ parse_args() {
     case "$1" in
       --install-system-deps) INSTALL_SYSTEM_DEPS=1; shift ;;
       --no-dotnet-install) INSTALL_DOTNET=0; shift ;;
+      --no-xray) INSTALL_XRAY=0; shift ;;
       --no-restore) RUN_RESTORE=0; shift ;;
       --build) RUN_BUILD=1; shift ;;
       --test) RUN_TESTS=1; shift ;;
@@ -142,6 +147,58 @@ ensure_dotnet() {
   dotnet --version
 }
 
+download_without_proxy() {
+  # Shell may carry proxy env vars pointing at a local proxy (127.0.0.1:10808)
+  # that is not running yet — the core download is exactly what fixes that.
+  # Bypass proxy env for this download.
+  env -u http_proxy -u https_proxy -u all_proxy \
+      -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY "$@"
+}
+
+ensure_xray_core() {
+  [[ "$INSTALL_XRAY" -eq 1 ]] || return 0
+
+  local core_dir="$APP_BIN_DIR/xray"
+  if [[ -x "$core_dir/xray" && -f "$APP_BIN_DIR/geosite.dat" ]]; then
+    log "Xray core already installed"
+    return 0
+  fi
+
+  command_exists unzip || die "unzip is required to extract Xray core (sudo apt-get install unzip)"
+
+  local asset
+  case "$(uname -m)" in
+    x86_64)  asset="Xray-linux-64.zip" ;;
+    aarch64) asset="Xray-linux-arm64-v8a.zip" ;;
+    *) die "Unsupported arch for automatic Xray install: $(uname -m). Download manually from https://github.com/XTLS/Xray-core/releases" ;;
+  esac
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  log "Downloading Xray core ($asset)"
+  if command_exists curl; then
+    download_without_proxy curl -fsSL -o "$tmp_dir/xray.zip" \
+      "https://github.com/XTLS/Xray-core/releases/latest/download/$asset"
+  elif command_exists wget; then
+    download_without_proxy wget -q -O "$tmp_dir/xray.zip" \
+      "https://github.com/XTLS/Xray-core/releases/latest/download/$asset"
+  else
+    die "curl or wget is required to download Xray core"
+  fi
+
+  unzip -o "$tmp_dir/xray.zip" xray geoip.dat geosite.dat -d "$tmp_dir/xray" >/dev/null
+
+  mkdir -p "$core_dir"
+  install -m 0755 "$tmp_dir/xray/xray" "$core_dir/xray"
+  # dat files go next to the binary AND in bin/ itself: the app runs xray
+  # with working dir = bin/, and xray resolves geo files from there.
+  cp "$tmp_dir/xray/geoip.dat" "$tmp_dir/xray/geosite.dat" "$core_dir/"
+  cp "$tmp_dir/xray/geoip.dat" "$tmp_dir/xray/geosite.dat" "$APP_BIN_DIR/"
+  rm -rf "$tmp_dir"
+
+  log "Xray core installed: $core_dir/xray"
+}
+
 restore_solution() {
   [[ "$RUN_RESTORE" -eq 1 ]] || return 0
 
@@ -183,6 +240,7 @@ main() {
   ensure_dotnet
   restore_solution
   build_desktop
+  ensure_xray_core
   test_service_lib
   run_app
 

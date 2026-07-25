@@ -28,18 +28,31 @@ The full solution contains a Windows-only WPF project. `setup.sh` already works 
 
 ## 2. Install Xray core (required)
 
-The app needs the xray binary, it is not bundled:
+The app needs the xray binary, it is not bundled. `setup.sh` installs it automatically
+(to skip: `./setup.sh --no-xray`). It places:
+
+- `xray` binary → `v2rayN/v2rayN.Desktop/bin/Debug/net10.0/bin/xray/` (executable)
+- `geoip.dat` + `geosite.dat` → **both** `bin/xray/` **and** `bin/`
+
+The `bin/` copy is required: the app runs xray with working dir = `bin/`, and xray
+resolves geo files from there. Missing it gives:
+`failed to load geosite: GOOGLE > ... failed to open file: geosite.dat`.
+
+Without the core you get: `The Core file (file name: xray) was not found` and delay always `-1 ms`.
+
+### Manual install (if setup.sh download fails)
 
 ```bash
 cd /tmp
-curl -fsSL -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-mkdir -p v2rayN/v2rayN.Desktop/bin/Debug/net10.0/bin/xray
-unzip -o xray.zip xray geoip.dat geosite.dat \
-  -d ~/Desktop/v2rayN/v2rayN/v2rayN.Desktop/bin/Debug/net10.0/bin/xray
-chmod +x ~/Desktop/v2rayN/v2rayN/v2rayN.Desktop/bin/Debug/net10.0/bin/xray/xray
+# bypass proxy env vars — local proxy isn't running yet, that's what we're fixing
+env -u http_proxy -u https_proxy -u all_proxy \
+  curl -fsSL -o xray.zip https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+BIN=~/Desktop/v2rayN-ubuntu/v2rayN/v2rayN.Desktop/bin/Debug/net10.0/bin
+mkdir -p "$BIN/xray"
+unzip -o xray.zip xray geoip.dat geosite.dat -d "$BIN/xray"
+chmod +x "$BIN/xray/xray"
+cp "$BIN/xray/"{geoip.dat,geosite.dat} "$BIN/"
 ```
-
-Without this you get: `The Core file (file name: xray) was not found` and delay always `-1 ms`.
 
 ## 3. Run the app
 
@@ -50,7 +63,7 @@ Without this you get: `The Core file (file name: xray) was not found` and delay 
 Or the built binary directly (faster startup):
 
 ```bash
-~/Desktop/v2rayN/v2rayN/v2rayN.Desktop/bin/Debug/net10.0/v2rayN
+~/Desktop/v2rayN-ubuntu/v2rayN/v2rayN.Desktop/bin/Debug/net10.0/v2rayN
 ```
 
 Kill an old instance first if restarting:
@@ -98,5 +111,7 @@ Disable autostart: delete `~/.config/autostart/v2rayN.desktop`.
 |---|---|---|
 | `xray was not found` | core missing | step 2 |
 | delay `-1 ms` | core missing or dead node | step 2, or pick another node |
+| `failed to open file: geosite.dat` | dat files missing from `bin/` (not just `bin/xray/`) | step 2 `cp` line |
+| curl `Failed to connect to 127.0.0.1 port 10808` during download | stale proxy env vars, proxy not running yet | prefix download with `env -u http_proxy -u https_proxy -u all_proxy` |
 | IP still shows real location | system proxy off | step 4.5 |
 | Firefox not proxied | ignores system proxy | step 5 browser notes |

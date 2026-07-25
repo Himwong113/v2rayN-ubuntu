@@ -81,6 +81,17 @@ Browser notes:
 - **Chrome/Chromium**: uses system proxy automatically.
 - **Firefox**: Settings → Network Settings → "Use system proxy settings".
 
+## 6. Start on login (optional)
+
+Autostart file created at `~/.config/autostart/v2rayN.desktop` — app launches on login.
+
+In-app settings worth enabling (Settings → Option setting):
+- **Auto start / start on boot** — if offered by app
+- **Set system proxy on start** — so proxy is active without manual tray click
+- **Start minimized to tray**
+
+Disable autostart: delete `~/.config/autostart/v2rayN.desktop`.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

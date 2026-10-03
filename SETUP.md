@@ -96,6 +96,10 @@ Browser notes:
 
 ## 6. Start on login (optional)
 
+Enable desktop startup with `./service/install.sh`. If you previously installed
+the background proxy service, run `sudo ./service/install.sh` to switch to the
+desktop app. See [service/README.md](service/README.md) for options.
+
 Autostart file created at `~/.config/autostart/v2rayN.desktop` — app launches on login.
 
 In-app settings worth enabling (Settings → Option setting):
